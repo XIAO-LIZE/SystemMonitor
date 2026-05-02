@@ -60,6 +60,9 @@ LANGUAGES = {
         "not_detected": "未检测到",
         "cores_unit": "核",
         "threads_unit": "线程",
+        "speed_unit": "/秒",
+        "temp_unit": "°C",
+        "watt_unit": " W",
         "slots_unit": "个",
 
         # CPU 页
@@ -194,6 +197,9 @@ LANGUAGES = {
         "unknown": "Unknown",
         "not_detected": "Not detected",
         "cores_unit": "",
+        "speed_unit": "/s",
+        "temp_unit": "°C",
+        "watt_unit": " W",
         "threads_unit": "",
         "slots_unit": "",
 

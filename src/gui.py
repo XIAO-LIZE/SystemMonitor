@@ -689,8 +689,8 @@ class MainWindow:
 
     def _update_disk(self):
         disk = self.monitor.get_disk()
-        self._widgets["disk_read"].config(text=self.monitor.format_bytes(disk.read_speed) + "/s")
-        self._widgets["disk_write"].config(text=self.monitor.format_bytes(disk.write_speed) + "/s")
+        self._widgets["disk_read"].config(text=self.monitor.format_bytes(disk.read_speed) + self._t("speed_unit"))
+        self._widgets["disk_write"].config(text=self.monitor.format_bytes(disk.write_speed) + self._t("speed_unit"))
         self.disk_tree.delete(*self.disk_tree.get_children())
         for p in disk.partitions:
             self.disk_tree.insert("", tk.END, values=(
@@ -705,9 +705,9 @@ class MainWindow:
         color = self._color(stats.gpu_usage)
         self._widgets["gpu_usage"].config(text=f"{stats.gpu_usage:.0f}%", fg=color)
         self._widgets["gpu_temp"].config(
-            text=f"{stats.temperature:.0f}°C" if stats.temperature > 0 else "--")
+            text=f"{stats.temperature:.0f}" + self._t("temp_unit") if stats.temperature > 0 else "--")
         self._widgets["gpu_power"].config(
-            text=f"{stats.power:.0f} W" if stats.power > 0 else "--")
+            text=f"{stats.power:.0f}" + self._t("watt_unit") if stats.power > 0 else "--")
         self._widgets["gpu_mem"].config(
             text=f"{stats.memory_usage:.0f}%" if stats.memory_usage > 0 else "--")
         if stats.memory_usage > 0:
@@ -718,8 +718,8 @@ class MainWindow:
 
     def _update_network(self):
         net = self.monitor.get_network()
-        self._widgets["net_upload"].config(text=self.monitor.format_bytes(net.upload_speed) + "/s")
-        self._widgets["net_download"].config(text=self.monitor.format_bytes(net.download_speed) + "/s")
+        self._widgets["net_upload"].config(text=self.monitor.format_bytes(net.upload_speed) + self._t("speed_unit"))
+        self._widgets["net_download"].config(text=self.monitor.format_bytes(net.download_speed) + self._t("speed_unit"))
         self._widgets["net_sent"].config(text=self.monitor.format_bytes(net.bytes_sent))
         self._widgets["net_recv"].config(text=self.monitor.format_bytes(net.bytes_recv))
         self.net_chart.update_data([net.upload_speed / 1024, net.download_speed / 1024])
