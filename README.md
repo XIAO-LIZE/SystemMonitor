@@ -21,6 +21,14 @@
 - 实时读写速度显示
 - 分区详情表格
 
+### 显卡监控
+- 自动检测显卡型号（NVIDIA / AMD / Intel）
+- GPU 使用率实时监控
+- 显存使用率、已用/总量
+- 温度监控
+- 功耗监控
+- 使用率趋势图
+
 ### 网络监控
 - 上传/下载速度实时显示
 - 总流量统计
@@ -55,6 +63,8 @@ SystemMonitor/
 ├── LICENSE              # MIT 许可证
 ├── src/
 │   ├── monitor.py       # 系统信息采集模块
+│   ├── hardware.py      # 硬件信息采集模块
+│   ├── gpu_monitor.py   # GPU 实时监控模块
 │   ├── gui.py           # GUI 主窗口
 │   └── charts.py        # 实时图表组件
 └── tests/

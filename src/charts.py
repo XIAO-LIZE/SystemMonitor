@@ -11,6 +11,8 @@ from collections import deque
 try:
     import matplotlib
     matplotlib.use("TkAgg")
+    matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei UI", "SimHei", "Arial"]
+    matplotlib.rcParams["axes.unicode_minus"] = False
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     HAS_MATPLOTLIB = True

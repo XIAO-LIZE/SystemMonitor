@@ -1,7 +1,7 @@
 """
 系统监控工具 - GUI 主窗口
 
-使用 tkinter 构建的系统监控面板，包含 CPU、内存、磁盘、网络、进程五个标签页。
+使用 tkinter 构建的系统监控面板，包含系统信息、CPU、内存、磁盘、显卡、网络、进程七个标签页。
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -9,6 +9,8 @@ import threading
 import time
 
 from .monitor import SystemMonitor
+from .hardware import HardwareCollector
+from .gpu_monitor import GpuMonitor
 from .charts import RealtimeChart, HAS_MATPLOTLIB
 
 
@@ -17,6 +19,7 @@ class MainWindow:
     系统监控主窗口
     
     功能：
+    - 系统信息总览（硬件型号、操作系统）
     - CPU 使用率实时监控（总体 + 每核心）
     - 内存使用率实时监控
     - 磁盘分区信息 + 读写速度
@@ -29,27 +32,46 @@ class MainWindow:
 
     def __init__(self):
         self.monitor = SystemMonitor(history_size=120)
+        self.hw = HardwareCollector()
+        self.gpu_monitor = GpuMonitor()
+
+        # 预采集硬件信息（只采一次）
+        self._cpu_detail = self.hw.get_cpu_detail()
+        self._mem_detail = self.hw.get_memory_detail()
+        self._disk_details = self.hw.get_disk_details()
+        self._gpu_details = self.hw.get_gpu_details()
+        self._sys_info = self.hw.get_system_info()
 
         # 创建主窗口
         self.root = tk.Tk()
         self.root.title("系统监控工具 v1.0")
-        self.root.geometry("900x650")
-        self.root.minsize(800, 600)
+        self.root.geometry("950x700")
+        self.root.minsize(850, 650)
 
         # 深色主题配色
         self.colors = {
-            "bg": "#1e1e1e",           # 主背景
-            "card_bg": "#2d2d2d",      # 卡片背景
-            "text": "#ffffff",          # 主文字
-            "text_dim": "#888888",      # 次要文字
-            "accent": "#4FC3F7",        # 强调色（蓝色）
-            "green": "#66BB6A",         # 绿色
-            "orange": "#FFA726",        # 橙色
-            "red": "#EF5350",           # 红色
-            "progress_bg": "#404040",   # 进度条背景
+            "bg": "#1e1e1e",
+            "card_bg": "#2d2d2d",
+            "text": "#ffffff",
+            "text_dim": "#888888",
+            "accent": "#4FC3F7",
+            "green": "#66BB6A",
+            "orange": "#FFA726",
+            "red": "#EF5350",
+            "progress_bg": "#404040",
+            "highlight": "#BB86FC",
         }
 
         self.root.configure(bg=self.colors["bg"])
+
+        # 设置全局默认字体（解决中文乱码）
+        default_font = ("Microsoft YaHei UI", 10)
+        self.root.option_add("*Font", default_font)
+        self.root.option_add("*TNotebook.Tab.Font", ("Microsoft YaHei UI", 10))
+        self.root.option_add("*TButton.Font", ("Microsoft YaHei UI", 9))
+        self.root.option_add("*TLabel.Font", ("Microsoft YaHei UI", 10))
+        self.root.option_add("*Treeview.Heading.Font", ("Microsoft YaHei UI", 9, "bold"))
+        self.root.option_add("*Treeview.Font", ("Microsoft YaHei UI", 9))
 
         # 设置 ttk 样式
         self._setup_styles()
@@ -67,18 +89,16 @@ class MainWindow:
         style = ttk.Style()
         style.theme_use("clam")
 
-        # 标签页样式
         style.configure("TNotebook", background=self.colors["bg"], borderwidth=0)
         style.configure("TNotebook.Tab",
                         background=self.colors["card_bg"],
                         foreground=self.colors["text"],
                         padding=[15, 8],
-                        font=("微软雅黑", 10))
+                        font=("Microsoft YaHei UI", 10))
         style.map("TNotebook.Tab",
                   background=[("selected", self.colors["accent"])],
                   foreground=[("selected", "#ffffff")])
 
-        # 进度条样式
         style.configure("Custom.Horizontal.TProgressbar",
                         background=self.colors["accent"],
                         troughcolor=self.colors["progress_bg"],
@@ -86,11 +106,10 @@ class MainWindow:
                         lightcolor=self.colors["accent"],
                         darkcolor=self.colors["accent"])
 
-        # 按钮样式
         style.configure("Danger.TButton",
                         background=self.colors["red"],
                         foreground="#ffffff",
-                        font=("微软雅黑", 9))
+                        font=("Microsoft YaHei UI", 9))
 
     def _build_header(self):
         """构建顶部标题栏"""
@@ -98,40 +117,43 @@ class MainWindow:
         header.pack(fill=tk.X, padx=0, pady=0)
         header.pack_propagate(False)
 
-        # 标题
+        # 标题 + 主机名
+        hostname = self._sys_info.hostname
+        title_text = f"🖥 系统监控工具  —  {hostname}"
         tk.Label(
-            header, text="🖥 系统监控工具",
+            header, text=title_text,
             bg=self.colors["card_bg"], fg=self.colors["text"],
-            font=("微软雅黑", 14, "bold")
+            font=("Microsoft YaHei UI", 14, "bold")
         ).pack(side=tk.LEFT, padx=15)
+
+        # 操作系统标签
+        os_text = f"{self._sys_info.os_name} {self._sys_info.os_arch}"
+        tk.Label(
+            header, text=os_text,
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        ).pack(side=tk.RIGHT, padx=15)
 
         # 状态标签
         self.status_label = tk.Label(
-            header, text="运行中",
+            header, text="● 运行中",
             bg=self.colors["card_bg"], fg=self.colors["green"],
-            font=("微软雅黑", 10)
+            font=("Microsoft YaHei UI", 10)
         )
-        self.status_label.pack(side=tk.RIGHT, padx=15)
+        self.status_label.pack(side=tk.RIGHT, padx=10)
 
     def _build_notebook(self):
         """构建标签页"""
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # CPU 标签页
-        self._build_cpu_tab()
-
-        # 内存标签页
-        self._build_memory_tab()
-
-        # 磁盘标签页
-        self._build_disk_tab()
-
-        # 网络标签页
-        self._build_network_tab()
-
-        # 进程标签页
-        self._build_process_tab()
+        self._build_info_tab()      # 系统信息
+        self._build_cpu_tab()       # CPU
+        self._build_memory_tab()    # 内存
+        self._build_disk_tab()      # 磁盘
+        self._build_gpu_tab()       # 显卡
+        self._build_network_tab()   # 网络
+        self._build_process_tab()   # 进程
 
     def _build_info_card(self, parent, title: str, row: int, col: int):
         """创建信息卡片"""
@@ -141,22 +163,184 @@ class MainWindow:
         tk.Label(
             card, text=title,
             bg=self.colors["card_bg"], fg=self.colors["text_dim"],
-            font=("微软雅黑", 9)
+            font=("Microsoft YaHei UI", 9)
         ).pack(anchor="w")
 
         value_label = tk.Label(
             card, text="--",
             bg=self.colors["card_bg"], fg=self.colors["text"],
-            font=("微软雅黑", 18, "bold")
+            font=("Microsoft YaHei UI", 18, "bold")
         )
         value_label.pack(anchor="w", pady=(5, 0))
 
         return value_label
 
+    def _build_info_row(self, parent, label: str, value: str, row: int):
+        """在信息页面创建一行信息"""
+        tk.Label(
+            parent, text=label,
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 10),
+            anchor="e", width=14
+        ).grid(row=row, column=0, padx=(15, 10), pady=4, sticky="e")
+
+        tk.Label(
+            parent, text=value,
+            bg=self.colors["card_bg"], fg=self.colors["text"],
+            font=("Microsoft YaHei UI", 10),
+            anchor="w"
+        ).grid(row=row, column=1, padx=(0, 15), pady=4, sticky="w")
+
+    # ==================== 系统信息标签页 ====================
+
+    def _build_info_tab(self):
+        """系统信息标签页 - 显示所有硬件型号和规格"""
+        tab = tk.Frame(self.notebook, bg=self.colors["bg"])
+        self.notebook.add(tab, text="  系统信息  ")
+
+        # 可滚动区域
+        canvas = tk.Canvas(tab, bg=self.colors["bg"], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(tab, orient=tk.VERTICAL, command=canvas.yview)
+        scroll_frame = tk.Frame(canvas, bg=self.colors["bg"])
+
+        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 鼠标滚轮支持
+        def _on_mousewheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # ---- 操作系统信息 ----
+        sys_frame = tk.LabelFrame(
+            scroll_frame, text="  操作系统  ",
+            bg=self.colors["card_bg"], fg=self.colors["accent"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+            padx=10, pady=10
+        )
+        sys_frame.pack(fill=tk.X, padx=15, pady=(15, 5))
+        sys_frame.grid_columnconfigure(1, weight=1)
+
+        self._build_info_row(sys_frame, "主机名：", self._sys_info.hostname, 0)
+        self._build_info_row(sys_frame, "操作系统：",
+                             f"{self._sys_info.os_name} {self._sys_info.os_version}", 1)
+        self._build_info_row(sys_frame, "系统架构：", self._sys_info.os_arch, 2)
+
+        # ---- CPU 信息 ----
+        cpu = self._cpu_detail
+        cpu_frame = tk.LabelFrame(
+            scroll_frame, text="  处理器 (CPU)  ",
+            bg=self.colors["card_bg"], fg=self.colors["accent"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+            padx=10, pady=10
+        )
+        cpu_frame.pack(fill=tk.X, padx=15, pady=5)
+        cpu_frame.grid_columnconfigure(1, weight=1)
+
+        self._build_info_row(cpu_frame, "型号：", cpu.name, 0)
+        self._build_info_row(cpu_frame, "架构：", cpu.architecture, 1)
+        self._build_info_row(cpu_frame, "物理核心：", f"{cpu.physical_cores} 核", 2)
+        self._build_info_row(cpu_frame, "逻辑核心：", f"{cpu.logical_cores} 线程", 3)
+        self._build_info_row(cpu_frame, "最大频率：", f"{cpu.max_freq:.0f} MHz", 4)
+        if cpu.l2_cache:
+            self._build_info_row(cpu_frame, "L2 缓存：", cpu.l2_cache, 5)
+        if cpu.l3_cache:
+            self._build_info_row(cpu_frame, "L3 缓存：", cpu.l3_cache, 6)
+
+        # ---- 内存信息 ----
+        mem = self._mem_detail
+        mem_frame = tk.LabelFrame(
+            scroll_frame, text="  内存 (RAM)  ",
+            bg=self.colors["card_bg"], fg=self.colors["accent"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+            padx=10, pady=10
+        )
+        mem_frame.pack(fill=tk.X, padx=15, pady=5)
+        mem_frame.grid_columnconfigure(1, weight=1)
+
+        row = 0
+        self._build_info_row(mem_frame, "总容量：",
+                             HardwareCollector.format_bytes(mem.total), row); row += 1
+        if mem.type:
+            self._build_info_row(mem_frame, "内存类型：", mem.type, row); row += 1
+        if mem.speed:
+            self._build_info_row(mem_frame, "频率：", mem.speed, row); row += 1
+        self._build_info_row(mem_frame, "插槽数：", f"{len(mem.slots)} 个", row); row += 1
+
+        # 每个插槽详情
+        for i, slot in enumerate(mem.slots):
+            cap = HardwareCollector.format_bytes(slot.get("capacity", 0))
+            part = slot.get("part_number", "")
+            mfr = slot.get("manufacturer", "")
+            slot_name = slot.get("slot", f"插槽 {i+1}")
+            detail = f"{cap}"
+            if part:
+                detail += f"  ({part})"
+            if mfr:
+                detail += f"  - {mfr}"
+            self._build_info_row(mem_frame, f"{slot_name}：", detail, row); row += 1
+
+        # ---- 磁盘信息 ----
+        disk_frame = tk.LabelFrame(
+            scroll_frame, text="  磁盘  ",
+            bg=self.colors["card_bg"], fg=self.colors["accent"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+            padx=10, pady=10
+        )
+        disk_frame.pack(fill=tk.X, padx=15, pady=5)
+        disk_frame.grid_columnconfigure(1, weight=1)
+
+        for i, disk in enumerate(self._disk_details):
+            row_offset = i * 4
+            self._build_info_row(disk_frame, f"磁盘 {i+1} 型号：", disk.model or "未知", row_offset)
+            self._build_info_row(disk_frame, "  容量：",
+                                 HardwareCollector.format_bytes(disk.size) if disk.size else "未知",
+                                 row_offset + 1)
+            self._build_info_row(disk_frame, "  接口：", disk.interface or "未知", row_offset + 2)
+            self._build_info_row(disk_frame, "  介质：", disk.media_type or "未知", row_offset + 3)
+
+        # ---- 显卡信息 ----
+        gpu_frame = tk.LabelFrame(
+            scroll_frame, text="  显卡 (GPU)  ",
+            bg=self.colors["card_bg"], fg=self.colors["accent"],
+            font=("Microsoft YaHei UI", 11, "bold"),
+            padx=10, pady=10
+        )
+        gpu_frame.pack(fill=tk.X, padx=15, pady=(5, 15))
+        gpu_frame.grid_columnconfigure(1, weight=1)
+
+        for i, gpu in enumerate(self._gpu_details):
+            self._build_info_row(gpu_frame, f"显卡 {i+1}：", gpu.name, i * 2)
+            if gpu.memory:
+                self._build_info_row(gpu_frame, "  显存：", gpu.memory, i * 2 + 1)
+
+        if not self._gpu_details:
+            self._build_info_row(gpu_frame, "显卡：", "未检测到", 0)
+
+    # ==================== CPU 标签页 ====================
+
     def _build_cpu_tab(self):
         """CPU 标签页"""
         tab = tk.Frame(self.notebook, bg=self.colors["bg"])
         self.notebook.add(tab, text="  CPU  ")
+
+        # CPU 型号提示条
+        model_bar = tk.Frame(tab, bg=self.colors["card_bg"], height=30)
+        model_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
+        model_bar.pack_propagate(False)
+        tk.Label(
+            model_bar,
+            text=f"  {self._cpu_detail.name}  |  "
+                 f"{self._cpu_detail.physical_cores}核"
+                 f"{self._cpu_detail.logical_cores}线程  |  "
+                 f"最大 {self._cpu_detail.max_freq:.0f} MHz",
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        ).pack(side=tk.LEFT, padx=10)
 
         # 顶部信息卡片
         cards_frame = tk.Frame(tab, bg=self.colors["bg"])
@@ -171,7 +355,7 @@ class MainWindow:
         cores_frame = tk.LabelFrame(
             tab, text=" 各核心使用率 ",
             bg=self.colors["card_bg"], fg=self.colors["text"],
-            font=("微软雅黑", 10),
+            font=("Microsoft YaHei UI", 10),
             padx=10, pady=10
         )
         cores_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
@@ -188,10 +372,27 @@ class MainWindow:
         )
         self.cpu_chart.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
+    # ==================== 内存标签页 ====================
+
     def _build_memory_tab(self):
         """内存标签页"""
         tab = tk.Frame(self.notebook, bg=self.colors["bg"])
         self.notebook.add(tab, text="  内存  ")
+
+        # 内存型号提示条
+        mem = self._mem_detail
+        model_text = f"  {mem.type or '内存'}  |  {mem.speed or '频率未知'}  |  "
+        model_text += f"总容量 {HardwareCollector.format_bytes(mem.total)}  |  "
+        model_text += f"{len(mem.slots)} 个插槽"
+
+        model_bar = tk.Frame(tab, bg=self.colors["card_bg"], height=30)
+        model_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
+        model_bar.pack_propagate(False)
+        tk.Label(
+            model_bar, text=model_text,
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        ).pack(side=tk.LEFT, padx=10)
 
         # 信息卡片
         cards_frame = tk.Frame(tab, bg=self.colors["bg"])
@@ -207,7 +408,7 @@ class MainWindow:
         bar_frame = tk.LabelFrame(
             tab, text=" 内存使用 ",
             bg=self.colors["card_bg"], fg=self.colors["text"],
-            font=("微软雅黑", 10),
+            font=("Microsoft YaHei UI", 10),
             padx=10, pady=10
         )
         bar_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
@@ -221,7 +422,7 @@ class MainWindow:
         self.mem_bar_label = tk.Label(
             bar_frame, text="",
             bg=self.colors["card_bg"], fg=self.colors["text_dim"],
-            font=("微软雅黑", 9)
+            font=("Microsoft YaHei UI", 9)
         )
         self.mem_bar_label.pack(anchor="w")
 
@@ -234,10 +435,27 @@ class MainWindow:
         )
         self.mem_chart.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
+    # ==================== 磁盘标签页 ====================
+
     def _build_disk_tab(self):
         """磁盘标签页"""
         tab = tk.Frame(self.notebook, bg=self.colors["bg"])
         self.notebook.add(tab, text="  磁盘  ")
+
+        # 磁盘型号提示条
+        disk_models = "  |  ".join(
+            f"{d.model} ({HardwareCollector.format_bytes(d.size)})"
+            for d in self._disk_details if d.model
+        ) or "未检测到物理磁盘信息"
+
+        model_bar = tk.Frame(tab, bg=self.colors["card_bg"], height=30)
+        model_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
+        model_bar.pack_propagate(False)
+        tk.Label(
+            model_bar, text=f"  {disk_models}",
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        ).pack(side=tk.LEFT, padx=10)
 
         # 速度信息
         speed_frame = tk.Frame(tab, bg=self.colors["bg"])
@@ -251,12 +469,11 @@ class MainWindow:
         partitions_frame = tk.LabelFrame(
             tab, text=" 磁盘分区 ",
             bg=self.colors["card_bg"], fg=self.colors["text"],
-            font=("微软雅黑", 10),
+            font=("Microsoft YaHei UI", 10),
             padx=10, pady=10
         )
         partitions_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
-        # 分区信息表格
         columns = ("设备", "挂载点", "文件系统", "总量", "已用", "可用", "使用率")
         self.disk_tree = ttk.Treeview(partitions_frame, columns=columns, show="headings", height=6)
 
@@ -269,6 +486,69 @@ class MainWindow:
 
         self.disk_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # ==================== 显卡标签页 ====================
+
+    def _build_gpu_tab(self):
+        """显卡标签页 - 实时监控 GPU 使用率、显存、温度"""
+        tab = tk.Frame(self.notebook, bg=self.colors["bg"])
+        self.notebook.add(tab, text="  显卡  ")
+
+        # 显卡型号提示条
+        vendor = self.gpu_monitor._vendor
+        gpu_name = self.gpu_monitor._gpu_name
+        model_bar = tk.Frame(tab, bg=self.colors["card_bg"], height=30)
+        model_bar.pack(fill=tk.X, padx=10, pady=(10, 0))
+        model_bar.pack_propagate(False)
+        tk.Label(
+            model_bar, text=f"  {gpu_name}  |  {vendor}",
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        ).pack(side=tk.LEFT, padx=10)
+
+        # 顶部信息卡片
+        cards_frame = tk.Frame(tab, bg=self.colors["bg"])
+        cards_frame.pack(fill=tk.X, padx=10, pady=10)
+        cards_frame.columnconfigure((0, 1, 2, 3), weight=1)
+
+        self.gpu_usage_label = self._build_info_card(cards_frame, "GPU 使用率", 0, 0)
+        self.gpu_mem_usage_label = self._build_info_card(cards_frame, "显存使用率", 0, 1)
+        self.gpu_temp_label = self._build_info_card(cards_frame, "温度", 0, 2)
+        self.gpu_power_label = self._build_info_card(cards_frame, "功耗", 0, 3)
+
+        # 显存详情
+        mem_frame = tk.LabelFrame(
+            tab, text=" 显存 ",
+            bg=self.colors["card_bg"], fg=self.colors["text"],
+            font=("Microsoft YaHei UI", 10),
+            padx=10, pady=10
+        )
+        mem_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+
+        self.gpu_mem_progress = ttk.Progressbar(
+            mem_frame, style="Custom.Horizontal.TProgressbar",
+            length=400, mode="determinate"
+        )
+        self.gpu_mem_progress.pack(fill=tk.X, pady=5)
+
+        self.gpu_mem_detail_label = tk.Label(
+            mem_frame, text="",
+            bg=self.colors["card_bg"], fg=self.colors["text_dim"],
+            font=("Microsoft YaHei UI", 9)
+        )
+        self.gpu_mem_detail_label.pack(anchor="w")
+
+        # 趋势图
+        self.gpu_chart = RealtimeChart(
+            tab, title="GPU 使用率趋势", y_label="%",
+            y_max=100,
+            line_labels=["GPU", "显存"],
+            line_colors=[self.colors["accent"], self.colors["orange"]],
+            figsize=(8, 2.5)
+        )
+        self.gpu_chart.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+    # ==================== 网络标签页 ====================
 
     def _build_network_tab(self):
         """网络标签页"""
@@ -295,6 +575,8 @@ class MainWindow:
         )
         self.net_chart.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
+    # ==================== 进程标签页 ====================
+
     def _build_process_tab(self):
         """进程标签页"""
         tab = tk.Frame(self.notebook, bg=self.colors["bg"])
@@ -307,7 +589,7 @@ class MainWindow:
         tk.Label(
             toolbar, text="进程列表（按内存排序）",
             bg=self.colors["bg"], fg=self.colors["text"],
-            font=("微软雅黑", 10)
+            font=("Microsoft YaHei UI", 10)
         ).pack(side=tk.LEFT)
 
         kill_btn = ttk.Button(
@@ -346,6 +628,8 @@ class MainWindow:
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
+    # ==================== 数据刷新 ====================
+
     def _refresh_data(self):
         """刷新所有监控数据"""
         if not self._running:
@@ -355,25 +639,23 @@ class MainWindow:
             self._update_cpu()
             self._update_memory()
             self._update_disk()
+            self._update_gpu()
             self._update_network()
             self._update_processes()
         except Exception as e:
             print(f"刷新数据出错: {e}")
 
-        # 安排下次刷新
         self.root.after(self.REFRESH_INTERVAL, self._refresh_data)
 
     def _update_cpu(self):
         """更新 CPU 数据"""
         cpu = self.monitor.get_cpu()
 
-        # 信息卡片
         color = self._get_usage_color(cpu.overall)
         self.cpu_overall_label.config(text=f"{cpu.overall:.1f}%", fg=color)
         self.cpu_freq_label.config(text=f"{cpu.freq_current:.0f} MHz")
         self.cpu_cores_label.config(text=f"{cpu.core_count} 核")
 
-        # 每核心进度条（只创建一次）
         if not self.cpu_core_bars:
             cols = min(cpu.core_count, 4)
             for i in range(cpu.core_count):
@@ -384,7 +666,7 @@ class MainWindow:
                 tk.Label(
                     frame, text=f"核心{i}",
                     bg=self.colors["card_bg"], fg=self.colors["text_dim"],
-                    font=("微软雅黑", 8), width=6
+                    font=("Microsoft YaHei UI", 8), width=6
                 ).pack(side=tk.LEFT)
 
                 bar = ttk.Progressbar(
@@ -396,22 +678,18 @@ class MainWindow:
                 label = tk.Label(
                     frame, text="0%",
                     bg=self.colors["card_bg"], fg=self.colors["text"],
-                    font=("微软雅黑", 8), width=5
+                    font=("Microsoft YaHei UI", 8), width=5
                 )
                 label.pack(side=tk.RIGHT)
 
                 self.cpu_core_bars.append((bar, label))
-
-                # 配置列权重
                 self.cpu_core_frames.grid_columnconfigure(col, weight=1)
 
-        # 更新核心进度条
         for i, (bar, label) in enumerate(self.cpu_core_bars):
             if i < len(cpu.per_core):
                 bar["value"] = cpu.per_core[i]
                 label.config(text=f"{cpu.per_core[i]:.0f}%")
 
-        # 趋势图
         self.cpu_chart.update_data([cpu.overall])
 
     def _update_memory(self):
@@ -424,13 +702,11 @@ class MainWindow:
         self.mem_available_label.config(text=self.monitor.format_bytes(mem.available))
         self.mem_total_label.config(text=self.monitor.format_bytes(mem.total))
 
-        # 进度条
         self.mem_progress["value"] = mem.percent
         self.mem_bar_label.config(
             text=f"{self.monitor.format_bytes(mem.used)} / {self.monitor.format_bytes(mem.total)}"
         )
 
-        # 趋势图
         self.mem_chart.update_data([mem.percent])
 
     def _update_disk(self):
@@ -440,7 +716,6 @@ class MainWindow:
         self.disk_read_label.config(text=self.monitor.format_bytes(disk.read_speed) + "/s")
         self.disk_write_label.config(text=self.monitor.format_bytes(disk.write_speed) + "/s")
 
-        # 更新分区表格
         self.disk_tree.delete(*self.disk_tree.get_children())
         for part in disk.partitions:
             self.disk_tree.insert("", tk.END, values=(
@@ -453,6 +728,32 @@ class MainWindow:
                 f"{part['percent']:.1f}%",
             ))
 
+    def _update_gpu(self):
+        """更新显卡数据"""
+        stats = self.gpu_monitor.get_stats()
+
+        color = self._get_usage_color(stats.gpu_usage)
+        self.gpu_usage_label.config(text=f"{stats.gpu_usage:.0f}%", fg=color)
+        self.gpu_temp_label.config(
+            text=f"{stats.temperature:.0f}°C" if stats.temperature > 0 else "--"
+        )
+        self.gpu_power_label.config(
+            text=f"{stats.power:.0f} W" if stats.power > 0 else "--"
+        )
+        self.gpu_mem_usage_label.config(
+            text=f"{stats.memory_usage:.0f}%" if stats.memory_usage > 0 else "--"
+        )
+
+        # 显存进度条
+        if stats.memory_usage > 0:
+            self.gpu_mem_progress["value"] = stats.memory_usage
+            self.gpu_mem_detail_label.config(
+                text=f"{stats.memory_used} / {stats.memory_total}"
+            )
+
+        # 趋势图
+        self.gpu_chart.update_data([stats.gpu_usage, stats.memory_usage])
+
     def _update_network(self):
         """更新网络数据"""
         net = self.monitor.get_network()
@@ -462,7 +763,6 @@ class MainWindow:
         self.net_sent_label.config(text=self.monitor.format_bytes(net.bytes_sent))
         self.net_recv_label.config(text=self.monitor.format_bytes(net.bytes_recv))
 
-        # 趋势图（转换为 KB/s）
         self.net_chart.update_data([
             net.upload_speed / 1024,
             net.download_speed / 1024,
@@ -470,8 +770,7 @@ class MainWindow:
 
     def _update_processes(self):
         """更新进程列表"""
-        # 只在进程标签页激活时刷新，节省资源
-        if self.notebook.index(self.notebook.select()) != 4:
+        if self.notebook.index(self.notebook.select()) != 6:
             return
         self._refresh_processes()
 
@@ -513,11 +812,11 @@ class MainWindow:
     def _get_usage_color(percent: float) -> str:
         """根据使用率返回颜色"""
         if percent < 60:
-            return "#66BB6A"   # 绿色
+            return "#66BB6A"
         elif percent < 85:
-            return "#FFA726"   # 橙色
+            return "#FFA726"
         else:
-            return "#EF5350"   # 红色
+            return "#EF5350"
 
     def run(self):
         """启动主循环"""
