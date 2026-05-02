@@ -4,7 +4,7 @@ title System Monitor
 
 echo.
 echo  ========================================
-echo        System Monitor v1.0
+echo        System Monitor v2.0
 echo  ========================================
 echo.
 
