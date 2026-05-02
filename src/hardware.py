@@ -111,10 +111,24 @@ class HardwareCollector:
 
     def get_system_info(self) -> SystemInfo:
         """采集操作系统信息"""
+        os_name = platform.system()
+        os_version = platform.version()
+
+        # Windows 11 检测（build >= 22000 就是 Win11，但 platform 会报告为 Windows 10）
+        if os_name == "Windows":
+            import sys
+            ver = sys.getwindowsversion()
+            if ver.major == 10 and ver.build >= 22000:
+                os_name = "Windows 11"
+                os_version = f"{ver.major}.{ver.minor}.{ver.build}"
+            else:
+                os_name = f"Windows {ver.major}"
+                os_version = f"{ver.major}.{ver.minor}.{ver.build}"
+
         return SystemInfo(
             hostname=platform.node(),
-            os_name=platform.system(),
-            os_version=platform.version(),
+            os_name=os_name,
+            os_version=os_version,
             os_arch=platform.machine(),
             machine=platform.machine(),
             processor=platform.processor(),
