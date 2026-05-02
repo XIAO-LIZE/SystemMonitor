@@ -9,7 +9,7 @@
 LANGUAGES = {
     "zh": {
         # 窗口标题
-        "window_title": "系统监控工具 v1.0",
+        "window_title": "系统监控工具 v2.0",
         "running": "● 运行中",
 
         # 标签页
@@ -131,7 +131,7 @@ LANGUAGES = {
 
     "en": {
         # Window title
-        "window_title": "System Monitor v1.0",
+        "window_title": "System Monitor v2.0",
         "running": "● Running",
 
         # Tabs
