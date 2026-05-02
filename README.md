@@ -65,7 +65,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-或双击 `start.bat` / Or double-click `start.bat`
+或双击 / Or double-click `start.bat`
 
 ## 项目结构 / Project Structure
 
