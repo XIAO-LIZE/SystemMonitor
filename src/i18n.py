@@ -71,6 +71,10 @@ LANGUAGES = {
         "cpu_cores_usage": " 各核心使用率 ",
         "cpu_trend": "CPU 使用率趋势",
         "cpu_trend_y": "%",
+        "cpu_trend_label": "CPU",
+        "mem_trend_label": "内存",
+        "gpu_trend_labels": ["GPU", "显存"],
+        "net_trend_labels": ["上传", "下载"],
 
         # 内存页
         "mem_model_bar": "{type}  |  {speed}  |  总容量 {total}  |  {slots} 个插槽",
@@ -202,6 +206,10 @@ LANGUAGES = {
         "cpu_cores_usage": " Per-Core Usage ",
         "cpu_trend": "CPU Usage Trend",
         "cpu_trend_y": "%",
+        "cpu_trend_label": "CPU",
+        "mem_trend_label": "Memory",
+        "gpu_trend_labels": ["GPU", "VRAM"],
+        "net_trend_labels": ["Upload", "Download"],
 
         # Memory page
         "mem_model_bar": "{type}  |  {speed}  |  Total {total}  |  {slots} slots",

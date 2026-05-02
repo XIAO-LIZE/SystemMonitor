@@ -197,7 +197,7 @@ class MainWindow:
         self._info_row(sys_f, "os_name", f"{self._sys_info.os_name} {self._sys_info.os_version}", 1)
         self._info_row(sys_f, "os_arch", self._sys_info.os_arch, 2)
         # 运行时间
-        self._info_row(sys_f, "uptime", self._sys_info.uptime, 3)
+        self._uptime_val = self._info_row(sys_f, "uptime", self._sys_info.uptime, 3)
 
         # CPU
         cpu = self._cpu_detail
@@ -512,6 +512,26 @@ class MainWindow:
             text=f"{self._sys_info.os_name} {self._sys_info.os_arch}")
         self._widgets["status"].config(text=t("running"))
 
+        # Update uptime format based on language
+        info = self._sys_info
+        if info.uptime_days > 0:
+            if self.lang == "zh":
+                uptime_text = f"{info.uptime_days}天 {info.uptime_hours}时 {info.uptime_minutes}分"
+            else:
+                uptime_text = f"{info.uptime_days}d {info.uptime_hours}h {info.uptime_minutes}m"
+        elif info.uptime_hours > 0:
+            if self.lang == "zh":
+                uptime_text = f"{info.uptime_hours}时 {info.uptime_minutes}分"
+            else:
+                uptime_text = f"{info.uptime_hours}h {info.uptime_minutes}m"
+        else:
+            if self.lang == "zh":
+                uptime_text = f"{info.uptime_minutes}分 {info.uptime_seconds}秒"
+            else:
+                uptime_text = f"{info.uptime_minutes}m {info.uptime_seconds}s"
+        if hasattr(self, '_uptime_val'):
+            self._uptime_val.config(text=uptime_text)
+
         tabs = [t("tab_info"), t("tab_cpu"), t("tab_memory"), t("tab_disk"),
                 t("tab_gpu"), t("tab_network"), t("tab_process")]
         for i, txt in enumerate(tabs):
@@ -609,15 +629,23 @@ class MainWindow:
         for c in self._proc_cols:
             self.process_tree.heading(c, text=t(c))
 
-        # Chart titles
+        # Chart titles + legend labels
         if hasattr(self, 'cpu_chart'):
-            self.cpu_chart.ax.set_title(t("cpu_trend"), color="white", fontsize=10, fontweight="bold")
+            self.cpu_chart.update_labels(
+                t("cpu_trend"), t("cpu_trend_y"),
+                [t("cpu_trend_label")])
         if hasattr(self, 'mem_chart'):
-            self.mem_chart.ax.set_title(t("mem_trend"), color="white", fontsize=10, fontweight="bold")
+            self.mem_chart.update_labels(
+                t("mem_trend"), "%",
+                [t("mem_trend_label")])
         if hasattr(self, 'gpu_chart'):
-            self.gpu_chart.ax.set_title(t("gpu_trend"), color="white", fontsize=10, fontweight="bold")
+            self.gpu_chart.update_labels(
+                t("gpu_trend"), "%",
+                t("gpu_trend_labels"))
         if hasattr(self, 'net_chart'):
-            self.net_chart.ax.set_title(t("net_trend"), color="white", fontsize=10, fontweight="bold")
+            self.net_chart.update_labels(
+                t("net_trend"), t("net_trend_y"),
+                t("net_trend_labels"))
 
     # ==================== Data Refresh ====================
     def _refresh_data(self):

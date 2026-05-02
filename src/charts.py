@@ -135,3 +135,17 @@ class RealtimeChart(ttk.Frame):
                 self.ax.set_ylim(0, max(max_val * 1.2, 10))
 
         self.canvas.draw_idle()
+
+    def update_labels(self, title: str, y_label: str, line_labels: List[str]):
+        """更新图表标题、Y轴标签和折线图例（用于语言切换）"""
+        if not HAS_MATPLOTLIB:
+            return
+        self.ax.set_title(title, color="white", fontsize=10, fontweight="bold")
+        self.ax.set_ylabel(y_label, color="white", fontsize=8)
+        for i, line in enumerate(self.lines):
+            if i < len(line_labels):
+                line.set_label(line_labels[i])
+        if len(line_labels) > 1:
+            self.ax.legend(loc="upper left", fontsize=7, facecolor="#333333",
+                           edgecolor="#555555", labelcolor="white")
+        self.canvas.draw_idle()

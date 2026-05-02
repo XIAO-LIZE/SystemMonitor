@@ -60,6 +60,10 @@ class SystemInfo:
     machine: str = ""
     processor: str = ""
     uptime: str = ""             # 开机时长
+    uptime_days: int = 0
+    uptime_hours: int = 0
+    uptime_minutes: int = 0
+    uptime_seconds: int = 0
 
 
 @dataclass
@@ -172,6 +176,10 @@ class HardwareCollector:
             machine=platform.machine(),
             processor=platform.processor(),
             uptime=uptime_str,
+            uptime_days=days,
+            uptime_hours=hours,
+            uptime_minutes=minutes,
+            uptime_seconds=seconds,
         )
 
     def get_cpu_detail(self) -> CpuDetail:
