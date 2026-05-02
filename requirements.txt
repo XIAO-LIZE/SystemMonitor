@@ -1,0 +1,3 @@
+# 系统依赖
+psutil>=5.9.0
+matplotlib>=3.7.0
