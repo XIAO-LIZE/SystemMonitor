@@ -59,6 +59,30 @@ class SystemInfo:
     os_arch: str = ""
     machine: str = ""
     processor: str = ""
+    uptime: str = ""             # 开机时长
+
+
+@dataclass
+class MotherboardInfo:
+    """主板信息"""
+    manufacturer: str = ""       # 制造商
+    product: str = ""            # 型号
+
+
+@dataclass
+class BiosInfo:
+    """BIOS 信息"""
+    manufacturer: str = ""       # 制造商
+    version: str = ""            # 版本
+    date: str = ""               # 日期
+
+
+@dataclass
+class NetworkAdapterInfo:
+    """网络适配器信息"""
+    name: str = ""               # 名称
+    mac: str = ""                # MAC 地址
+    speed: str = ""              # 速度
 
 
 class HardwareCollector:
@@ -125,6 +149,21 @@ class HardwareCollector:
                 os_name = f"Windows {ver.major}"
                 os_version = f"{ver.major}.{ver.minor}.{ver.build}"
 
+        # 计算开机时长
+        uptime_sec = psutil.boot_time()
+        import datetime
+        boot_time = datetime.datetime.fromtimestamp(uptime_sec)
+        delta = datetime.datetime.now() - boot_time
+        hours, remainder = divmod(int(delta.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        days = delta.days
+        if days > 0:
+            uptime_str = f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            uptime_str = f"{hours}h {minutes}m"
+        else:
+            uptime_str = f"{minutes}m {seconds}s"
+
         return SystemInfo(
             hostname=platform.node(),
             os_name=os_name,
@@ -132,6 +171,7 @@ class HardwareCollector:
             os_arch=platform.machine(),
             machine=platform.machine(),
             processor=platform.processor(),
+            uptime=uptime_str,
         )
 
     def get_cpu_detail(self) -> CpuDetail:
@@ -296,6 +336,77 @@ class HardwareCollector:
             disks.append(DiskDetail(**current))
 
         return disks
+
+    def get_motherboard(self) -> MotherboardInfo:
+        """采集主板信息"""
+        output = self._run_ps(
+            "Get-CimInstance Win32_BaseBoard | "
+            "Select-Object Manufacturer,Product | Format-List"
+        )
+        info = MotherboardInfo()
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("Manufacturer") and ":" in line:
+                info.manufacturer = line.split(":", 1)[1].strip()
+            elif line.startswith("Product") and ":" in line:
+                info.product = line.split(":", 1)[1].strip()
+        return info
+
+    def get_bios(self) -> BiosInfo:
+        """采集 BIOS 信息"""
+        output = self._run_ps(
+            "Get-CimInstance Win32_BIOS | "
+            "Select-Object Manufacturer,SMBIOSBIOSVersion,ReleaseDate | Format-List"
+        )
+        info = BiosInfo()
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith("Manufacturer") and ":" in line:
+                info.manufacturer = line.split(":", 1)[1].strip()
+            elif line.startswith("SMBIOSBIOSVersion") and ":" in line:
+                info.version = line.split(":", 1)[1].strip()
+            elif line.startswith("ReleaseDate") and ":" in line:
+                info.date = line.split(":", 1)[1].strip()[:10]
+        return info
+
+    def get_network_adapters(self) -> List[NetworkAdapterInfo]:
+        """采集物理网络适配器信息"""
+        output = self._run_ps(
+            "Get-CimInstance Win32_NetworkAdapter | "
+            "Where-Object {$_.PhysicalAdapter -eq $true} | "
+            "Select-Object Name,MACAddress,Speed | Format-List"
+        )
+        adapters = []
+        current = {}
+        for line in output.splitlines():
+            line = line.strip()
+            if not line:
+                if current:
+                    adapters.append(NetworkAdapterInfo(**current))
+                    current = {}
+                continue
+            if ":" in line:
+                key, _, val = line.partition(":")
+                key = key.strip()
+                val = val.strip()
+                if key == "Name":
+                    current["name"] = val
+                elif key == "MACAddress" and val:
+                    current["mac"] = val
+                elif key == "Speed" and val:
+                    try:
+                        speed_bps = int(val)
+                        if speed_bps >= 1000000000:
+                            current["speed"] = f"{speed_bps // 1000000000} Gbps"
+                        elif speed_bps >= 1000000:
+                            current["speed"] = f"{speed_bps // 1000000} Mbps"
+                        else:
+                            current["speed"] = f"{speed_bps} bps"
+                    except ValueError:
+                        pass
+        if current:
+            adapters.append(NetworkAdapterInfo(**current))
+        return adapters
 
     def get_gpu_details(self) -> List[GpuDetail]:
         """采集显卡详细信息"""

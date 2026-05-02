@@ -27,6 +27,9 @@ class MainWindow:
         self._disk_details = self.hw.get_disk_details()
         self._gpu_details = self.hw.get_gpu_details()
         self._sys_info = self.hw.get_system_info()
+        self._mb_info = self.hw.get_motherboard()
+        self._bios_info = self.hw.get_bios()
+        self._net_adapters = self.hw.get_network_adapters()
 
         self.root = tk.Tk()
         self.root.geometry("950x700")
@@ -173,18 +176,33 @@ class MainWindow:
 
         self._info_tab_frame = sf
 
+        # 左右两列容器
+        columns = tk.Frame(sf, bg=self.colors["bg"])
+        columns.pack(fill=tk.X, padx=15, pady=15)
+        columns.columnconfigure(0, weight=1)
+        columns.columnconfigure(1, weight=1)
+
+        left = tk.Frame(columns, bg=self.colors["bg"])
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        right = tk.Frame(columns, bg=self.colors["bg"])
+        right.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+
+        # === 左列 ===
+
         # OS
-        sys_f = self._section(sf, "os_section")
-        sys_f.pack(fill=tk.X, padx=15, pady=(15, 5))
+        sys_f = self._section(left, "os_section")
+        sys_f.pack(fill=tk.X, pady=(0, 8))
         sys_f.grid_columnconfigure(1, weight=1)
         self._info_row(sys_f, "hostname", self._sys_info.hostname, 0)
         self._info_row(sys_f, "os_name", f"{self._sys_info.os_name} {self._sys_info.os_version}", 1)
         self._info_row(sys_f, "os_arch", self._sys_info.os_arch, 2)
+        # 运行时间
+        self._info_row(sys_f, "uptime", self._sys_info.uptime, 3)
 
         # CPU
         cpu = self._cpu_detail
-        cpu_f = self._section(sf, "cpu_section")
-        cpu_f.pack(fill=tk.X, padx=15, pady=5)
+        cpu_f = self._section(left, "cpu_section")
+        cpu_f.pack(fill=tk.X, pady=(0, 8))
         cpu_f.grid_columnconfigure(1, weight=1)
         r = 0
         self._info_row(cpu_f, "cpu_model", cpu.name, r); r += 1
@@ -199,8 +217,8 @@ class MainWindow:
 
         # Memory
         mem = self._mem_detail
-        mem_f = self._section(sf, "memory_section")
-        mem_f.pack(fill=tk.X, padx=15, pady=5)
+        mem_f = self._section(left, "memory_section")
+        mem_f.pack(fill=tk.X, pady=(0, 8))
         mem_f.grid_columnconfigure(1, weight=1)
         r = 0
         self._info_row(mem_f, "mem_total", HardwareCollector.format_bytes(mem.total), r); r += 1
@@ -213,12 +231,30 @@ class MainWindow:
             cap = HardwareCollector.format_bytes(slot.get("capacity", 0))
             part = slot.get("part_number", "")
             mfr = slot.get("manufacturer", "")
-            sname = slot.get("slot", f"Slot {i+1}")
             self._info_row(mem_f, f"slot_{i}", f"{cap}  {part}  {mfr}", r); r += 1
 
+        # === 右列 ===
+
+        # Motherboard
+        mb = self._mb_info
+        mb_f = self._section(right, "mb_section")
+        mb_f.pack(fill=tk.X, pady=(0, 8))
+        mb_f.grid_columnconfigure(1, weight=1)
+        self._info_row(mb_f, "mb_manufacturer", mb.manufacturer or "N/A", 0)
+        self._info_row(mb_f, "mb_product", mb.product or "N/A", 1)
+
+        # BIOS
+        bios = self._bios_info
+        bios_f = self._section(right, "bios_section")
+        bios_f.pack(fill=tk.X, pady=(0, 8))
+        bios_f.grid_columnconfigure(1, weight=1)
+        self._info_row(bios_f, "bios_manufacturer", bios.manufacturer or "N/A", 0)
+        self._info_row(bios_f, "bios_version", bios.version or "N/A", 1)
+        self._info_row(bios_f, "bios_date", bios.date or "N/A", 2)
+
         # Disk
-        disk_f = self._section(sf, "disk_section")
-        disk_f.pack(fill=tk.X, padx=15, pady=5)
+        disk_f = self._section(right, "disk_section")
+        disk_f.pack(fill=tk.X, pady=(0, 8))
         disk_f.grid_columnconfigure(1, weight=1)
         r = 0
         for i, d in enumerate(self._disk_details):
@@ -228,14 +264,26 @@ class MainWindow:
             self._info_row(disk_f, f"disk_{i}_iface", d.interface or "N/A", r); r += 1
 
         # GPU
-        gpu_f = self._section(sf, "gpu_section")
-        gpu_f.pack(fill=tk.X, padx=15, pady=(5, 15))
+        gpu_f = self._section(right, "gpu_section")
+        gpu_f.pack(fill=tk.X, pady=(0, 8))
         gpu_f.grid_columnconfigure(1, weight=1)
         r = 0
         for i, g in enumerate(self._gpu_details):
             self._info_row(gpu_f, f"gpu_{i}", g.name, r); r += 1
             if g.memory:
                 self._info_row(gpu_f, f"gpu_{i}_mem", g.memory, r); r += 1
+
+        # Network Adapters
+        net_f = self._section(right, "net_section")
+        net_f.pack(fill=tk.X, pady=(0, 8))
+        net_f.grid_columnconfigure(1, weight=1)
+        r = 0
+        for i, adapter in enumerate(self._net_adapters):
+            self._info_row(net_f, f"net_{i}", adapter.name, r); r += 1
+            if adapter.mac:
+                self._info_row(net_f, f"net_{i}_mac", adapter.mac, r); r += 1
+            if adapter.speed:
+                self._info_row(net_f, f"net_{i}_speed", adapter.speed, r); r += 1
 
         self.notebook.add(tab, text="")
 
