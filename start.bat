@@ -5,7 +5,6 @@ title System Monitor v2.0
 echo.
 echo  ========================================
 echo    System Monitor v2.0
-echo    系统监控工具 v2.0
 echo  ========================================
 echo.
 cd /d "%~dp0"
