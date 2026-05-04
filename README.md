@@ -1,67 +1,71 @@
-# 系统监控工具 v2.0 / System Monitor v2.0
+# 系统监控工具 v2.2 / System Monitor v2.2
 
-一个基于 Python + tkinter 的实时系统资源监控桌面工具。支持中英文界面切换。
+一个基于 Python + tkinter 的实时系统资源监控桌面工具。支持中英文界面切换，支持多显卡切换监控。
 
-A real-time system resource monitoring desktop tool built with Python + tkinter. Supports Chinese/English UI.
+A real-time system resource monitoring desktop tool built with Python + tkinter. Supports Chinese/English UI and multi-GPU monitoring.
 
 ## 功能介绍 / Features
 
-### 操作系统信息 / System Info
+### 系统信息 / System Info
 - 主机名、操作系统版本、架构、运行时间
-- 主板制造商、型号
-- BIOS 制造商、版本、日期
+- CPU、内存、磁盘、显卡、主板、BIOS 详细信息
 - 网络适配器列表（网卡名、MAC、速率）
-- 左右两列布局，信息一目了然
+- 网络 IP 信息（IP 地址、网关、DNS，实时刷新）
 
 ### CPU 监控 / CPU Monitor
-- 实时显示总体 CPU 使用率
-- 每核心的独立使用率显示
-- CPU 频率监测
+- 实时总体使用率 + 每核心独立使用率
+- CPU 频率监测、核心数
+- CPU 温度监控（绿/橙/红 颜色编码）
 - 使用率趋势图
+
+### 显卡监控 / GPU Monitor
+- 多显卡自动识别（NVIDIA / AMD / Intel 集显）
+- 多显卡切换选择器
+- GPU 使用率、显存、温度、功耗实时监控
+- 显存进度条（已用/总量）
+- GPU + 显存使用率趋势图
 
 ### 内存监控 / Memory Monitor
 - 物理内存使用率、已用、可用、总量
-- 虚拟内存使用率
-- 可视化进度条
-- 使用率趋势图
+- 可视化进度条 + 使用率趋势图
 
 ### 磁盘监控 / Disk Monitor
-- 所有分区信息（设备、容量、使用率）
-- 实时读写速度显示（/秒）
-- 分区详情表格
-
-### 显卡监控 / GPU Monitor
-- 自动识别显卡型号（NVIDIA / AMD / Intel）
-- GPU 使用率实时监控
-- 显存使用率、已用/总量
-- 温度监控
-- 功耗监控
-- 使用率趋势图
+- 所有分区信息（设备、挂载点、文件系统、容量、使用率）
+- 实时读写速度
 
 ### 网络监控 / Network Monitor
-- 上传/下载速度实时显示（/秒）
-- 总流量统计
+- 上传/下载速度实时显示 + 总流量统计
 - 上传/下载速度趋势图
 
 ### 进程管理 / Process Manager
-- 进程列表（按内存排序）
-- 显示 PID、名称、CPU%、内存%、状态、用户
-- 支持结束指定进程
+- 进程列表（按内存排序），PID/名称/CPU%/内存%/状态/用户
+- 支持终止选中进程
 
 ### 多语言 / Multi-Language
-- 支持中文/英文界面切换
-- 右上角一键切换
-- 所有标签、表头、单位均随语言切换
+- 中文 / 英文一键切换
+- 所有标签、表头、单位、图表坐标轴均随语言切换
+
+## 更新日志 / Changelog
+
+### v2.2
+- CPU 温度监控
+- 多显卡切换选择器
+- 系统信息页新增网络 IP 区域
+- 图表 X 轴中英切换
+- 图表字体放大
+
+### v2.0
+- 首次发布
 
 ## 快速开始 / Quick Start
 
-### 安装依赖 / Install Dependencies
+### 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 运行 / Run
+### 运行
 
 ```bash
 python main.py
@@ -72,31 +76,28 @@ python main.py
 ## 项目结构 / Project Structure
 
 ```
-SystemMonitor/
-├── main.py              # 入口文件 / Entry point
-├── start.bat            # 一键启动脚本 / Quick start script
-├── requirements.txt     # 依赖列表 / Dependencies
+├── main.py              # 入口
+├── start.bat            # 启动脚本
+├── requirements.txt     # 依赖
 ├── LICENSE              # MIT 开源证书
 ├── README.md
-├── src/
-│   ├── monitor.py       # 系统信息采集 / System info collector
-│   ├── hardware.py      # 硬件信息采集 / Hardware info collector
-│   ├── gpu_monitor.py   # GPU 实时监控 / GPU real-time monitor
-│   ├── gui.py           # GUI 主窗口 / Main window
-│   ├── charts.py        # 实时图表组件 / Real-time chart widget
-│   └── i18n.py          # 国际化模块 / Internationalization
-└── tests/
-    └── test_monitor.py  # 单元测试 / Unit tests
+└── src/
+    ├── monitor.py       # 系统信息采集
+    ├── hardware.py      # 硬件信息采集
+    ├── gpu_monitor.py   # GPU 实时监控
+    ├── gui.py           # GUI 主窗口
+    ├── charts.py        # 实时图表组件
+    └── i18n.py          # 国际化
 ```
 
 ## 技术栈 / Tech Stack
 
 - **Python 3.8+**
-- **psutil** - 跨平台系统信息采集 / Cross-platform system info
-- **matplotlib** - 图表渲染 / Chart rendering
-- **tkinter** - GUI 框架（Python 内置）/ GUI framework (built-in)
-- **nvidia-smi** - NVIDIA 显卡监控 / NVIDIA GPU monitoring
-- **rocm-smi** - AMD 显卡监控 / AMD GPU monitoring
+- **psutil** — 跨平台系统信息采集
+- **matplotlib** — 图表渲染
+- **tkinter** — GUI 框架（Python 内置）
+- **nvidia-smi** — NVIDIA 显卡监控
+- **WMI / PowerShell CIM** — 硬件信息查询
 
 ## 开源证书 / License
 
