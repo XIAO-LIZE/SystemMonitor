@@ -480,3 +480,91 @@ class HardwareCollector:
                 return f"{bytes_val:.1f} {unit}"
             bytes_val /= 1024
         return f"{bytes_val:.1f} PB"
+
+    @staticmethod
+    def get_network_info() -> dict:
+        """获取网络信息：IP、网关、DNS"""
+        result = {"ips": [], "gateway": "", "dns": []}
+        try:
+            output = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.AddressState -eq 'Preferred' -and $_.PrefixOrigin -ne 'WellKnown'} | "
+                 "Select-Object IPAddress,InterfaceAlias | ConvertTo-Json -Compress"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=0x08000000,
+            ).stdout.strip()
+            if output:
+                import json
+                try:
+                    ips = json.loads(output)
+                    if isinstance(ips, dict):
+                        ips = [ips]
+                    seen = set()
+                    for ip in (ips or []):
+                        addr = ip.get("IPAddress", "")
+                        iface = ip.get("InterfaceAlias", "")
+                        if addr and not addr.startswith("127.") and addr not in seen:
+                            seen.add(addr)
+                            result["ips"].append(f"{addr}  ({iface})")
+                except json.JSONDecodeError:
+                    pass
+
+            # Gateway
+            gw_out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | "
+                 "Select-Object -First 1 NextHop).NextHop"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=0x08000000,
+            ).stdout.strip()
+            if gw_out:
+                result["gateway"] = gw_out
+
+            # DNS
+            dns_out = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(Get-DnsClientServerAddress -AddressFamily IPv4 | "
+                 "Where-Object {$_.ServerAddresses -notcontains '127.0.0.1'} | "
+                 "Select-Object -First 1 -ExpandProperty ServerAddresses) -join ','"],
+                capture_output=True, text=True, timeout=5,
+                creationflags=0x08000000,
+            ).stdout.strip()
+            if dns_out and dns_out != "127.0.0.1":
+                result["dns"] = [d for d in dns_out.split(",") if d.strip()]
+        except Exception:
+            pass
+        return result
+
+
+# CPU 温度缓存（轻量，不建新模块）
+_cpu_temp_cache = {"temp": 0.0, "time": 0.0}
+
+
+def get_cpu_temp() -> float:
+    """获取 CPU 温度（°C），2 秒内命中缓存"""
+    import time
+    now = time.time()
+    if now - _cpu_temp_cache["time"] < 2.0:
+        return _cpu_temp_cache["temp"]
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance -Namespace root/cimv2 "
+             "Win32_PerfFormattedData_Counters_ThermalZoneInformation "
+             "-ErrorAction SilentlyContinue).HighPrecisionTemperature"],
+            capture_output=True, text=True, timeout=5,
+            creationflags=0x08000000,
+        )
+        val = result.stdout.strip()
+        if val:
+            ht = float(val)
+            c = round((ht / 1000.0) - 273.15, 1)
+            if c <= 0 or c >= 150:
+                c = round(ht / 100.0, 1)
+            if 0 < c < 150:
+                _cpu_temp_cache["temp"] = c
+                _cpu_temp_cache["time"] = now
+                return c
+    except Exception:
+        pass
+    return _cpu_temp_cache["temp"]

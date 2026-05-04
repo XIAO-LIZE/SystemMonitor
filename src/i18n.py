@@ -9,15 +9,15 @@
 LANGUAGES = {
     "zh": {
         # 窗口标题
-        "window_title": "系统监控工具 v2.0",
+        "window_title": "系统监控工具 v2.2",
         "running": "● 运行中",
 
         # 标签页
         "tab_info": "  系统信息  ",
         "tab_cpu": "  CPU  ",
+        "tab_gpu": "  显卡  ",
         "tab_memory": "  内存  ",
         "tab_disk": "  磁盘  ",
-        "tab_gpu": "  显卡  ",
         "tab_network": "  网络  ",
         "tab_process": "  进程  ",
 
@@ -30,10 +30,20 @@ LANGUAGES = {
         "mb_section": "  主板  ",
         "bios_section": "  BIOS  ",
         "net_section": "  网络适配器  ",
+        "net_ip_section": "  网络 IP  ",
+        "net_ip_label": "IP 地址：",
+        "net_gateway": "网关：",
+        "net_dns": "DNS：",
+        "net_card": "网卡 {n}：",
+        "net_mac": "  MAC：",
+        "net_speed": "  速率：",
         "hostname": "主机名：",
         "os_name": "操作系统：",
         "os_arch": "系统架构：",
         "uptime": "运行时间：",
+        "uptime_d_h_m": "{d}天 {h}时 {m}分",
+        "uptime_h_m": "{h}时 {m}分",
+        "uptime_m_s": "{m}分 {s}秒",
         "cpu_model": "型号：",
         "cpu_arch": "架构：",
         "cpu_physical_cores": "物理核心：",
@@ -63,6 +73,7 @@ LANGUAGES = {
         "speed_unit": "/秒",
         "temp_unit": "°C",
         "watt_unit": " W",
+        "slot": "插槽 {n}：",
         "slots_unit": "个",
 
         # CPU 页
@@ -70,10 +81,13 @@ LANGUAGES = {
         "cpu_overall": "CPU 总体使用率",
         "cpu_freq": "CPU 频率",
         "cpu_cores": "核心数",
+        "cpu_temp": "CPU 温度",
+        "thermal_no_data": "无数据",
         "cpu_core_label": "核心{n}",
         "cpu_cores_usage": " 各核心使用率 ",
         "cpu_trend": "CPU 使用率趋势",
         "cpu_trend_y": "%",
+        "cpu_trend_x": "时间 (秒)",
         "cpu_trend_label": "CPU",
         "mem_trend_label": "内存",
         "gpu_trend_labels": ["GPU", "显存"],
@@ -103,6 +117,8 @@ LANGUAGES = {
 
         # 显卡页
         "gpu_model_bar": "{name}  |  {vendor}",
+        "gpu_model_bar_multi": "{vendor} · {count} 张显卡",
+        "gpu_selector": "选择显卡",
         "gpu_usage": "GPU 使用率",
         "gpu_mem_usage": "显存使用率",
         "gpu_temp": "温度",
@@ -147,15 +163,15 @@ LANGUAGES = {
 
     "en": {
         # Window title
-        "window_title": "System Monitor v2.0",
+        "window_title": "System Monitor v2.2",
         "running": "● Running",
 
         # Tabs
         "tab_info": "  System  ",
         "tab_cpu": "  CPU  ",
+        "tab_gpu": "  GPU  ",
         "tab_memory": "  Memory  ",
         "tab_disk": "  Disk  ",
-        "tab_gpu": "  GPU  ",
         "tab_network": "  Network  ",
         "tab_process": "  Process  ",
 
@@ -168,10 +184,20 @@ LANGUAGES = {
         "mb_section": "  Motherboard  ",
         "bios_section": "  BIOS  ",
         "net_section": "  Network Adapters  ",
+        "net_ip_section": "  Network IP  ",
+        "net_ip_label": "IP Address:",
+        "net_gateway": "Gateway:",
+        "net_dns": "DNS:",
+        "net_card": "NIC {n}:",
+        "net_mac": "  MAC:",
+        "net_speed": "  Speed:",
         "hostname": "Hostname:",
         "os_name": "OS:",
         "os_arch": "Architecture:",
         "uptime": "Uptime:",
+        "uptime_d_h_m": "{d}d {h}h {m}m",
+        "uptime_h_m": "{h}h {m}m",
+        "uptime_m_s": "{m}m {s}s",
         "cpu_model": "Model:",
         "cpu_arch": "Architecture:",
         "cpu_physical_cores": "Physical Cores:",
@@ -201,6 +227,7 @@ LANGUAGES = {
         "temp_unit": "°C",
         "watt_unit": " W",
         "threads_unit": "",
+        "slot": "Slot {n}:",
         "slots_unit": "",
 
         # CPU page
@@ -208,10 +235,13 @@ LANGUAGES = {
         "cpu_overall": "CPU Usage",
         "cpu_freq": "CPU Frequency",
         "cpu_cores": "Cores",
+        "cpu_temp": "CPU Temp",
+        "thermal_no_data": "N/A",
         "cpu_core_label": "Core {n}",
         "cpu_cores_usage": " Per-Core Usage ",
         "cpu_trend": "CPU Usage Trend",
         "cpu_trend_y": "%",
+        "cpu_trend_x": "Time (s)",
         "cpu_trend_label": "CPU",
         "mem_trend_label": "Memory",
         "gpu_trend_labels": ["GPU", "VRAM"],
@@ -241,6 +271,8 @@ LANGUAGES = {
 
         # GPU page
         "gpu_model_bar": "{name}  |  {vendor}",
+        "gpu_model_bar_multi": "{vendor} · {count} GPU(s)",
+        "gpu_selector": "Select GPU",
         "gpu_usage": "GPU Usage",
         "gpu_mem_usage": "VRAM Usage",
         "gpu_temp": "Temperature",
@@ -289,16 +321,61 @@ def get_text(lang: str, key: str, **kwargs) -> str:
     """
     获取指定语言的文本
     
-    Args:
-        lang: 语言代码 ("zh" 或 "en")
-        key: 文本键名
-        **kwargs: 格式化参数
-        
-    Returns:
-        翻译后的文本字符串
+    支持动态索引键：disk_0_model → disk_model, gpu_1 → gpu_card 等
     """
-    text = LANGUAGES.get(lang, LANGUAGES["zh"]).get(key, key)
-    if kwargs:
+    text = LANGUAGES.get(lang, LANGUAGES["zh"]).get(key)
+    
+    # 未直接命中，尝试动态索引键匹配
+    if text is None:
+        import re
+        # disk_0_model / disk_1_cap / disk_2_iface
+        m = re.match(r'^disk_(\d+)_(model|cap|iface|media)$', key)
+        if m:
+            n = int(m.group(1)) + 1
+            sub = m.group(2)
+            base_key = {"model": "disk_model", "cap": "disk_capacity",
+                         "iface": "disk_interface", "media": "disk_media"}.get(sub, key)
+            text = LANGUAGES[lang].get(base_key, key)
+            if text and "{n}" in text:
+                return text.format(n=n)
+            return text
+        # gpu_0 / gpu_1_mem
+        m = re.match(r'^gpu_(\d+)(?:_mem)?$', key)
+        if m:
+            n = int(m.group(1)) + 1
+            if "_mem" in key:
+                base = LANGUAGES[lang].get("gpu_vram", key)
+            else:
+                base = LANGUAGES[lang].get("gpu_card", key)
+            if base and "{n}" in base:
+                return base.format(n=n)
+            return base
+        # net_0 / net_0_mac / net_0_speed
+        m = re.match(r'^net_(\d+)(?:_(mac|speed))?$', key)
+        if m:
+            n = int(m.group(1)) + 1
+            sub = m.group(2)
+            if sub == "mac":
+                base = LANGUAGES[lang].get("net_mac", key)
+            elif sub == "speed":
+                base = LANGUAGES[lang].get("net_speed", key)
+            else:
+                base = LANGUAGES[lang].get("net_card", key)
+            if base and "{n}" in base:
+                return base.format(n=n)
+            return base
+        # slot_0 / slot_1
+        m = re.match(r'^slot_(\d+)$', key)
+        if m:
+            n = int(m.group(1)) + 1
+            base = LANGUAGES[lang].get("slot", key)
+            if base and "{n}" in base:
+                return base.format(n=n)
+            return base
+        
+        text = key  # fallback to raw key
+    
+    if kwargs and text:
         try:
             return text.format(**kwargs)
         except (KeyError, IndexError):

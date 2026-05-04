@@ -1,5 +1,5 @@
 """
-系统监控工具 v2.0 - GUI 主窗口
+系统监控工具 v2.2 - GUI 主窗口
 
 支持中英文切换。
 """
@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from .monitor import SystemMonitor
-from .hardware import HardwareCollector
+from .hardware import HardwareCollector, get_cpu_temp
 from .gpu_monitor import GpuMonitor
 from .charts import RealtimeChart, HAS_MATPLOTLIB
 from .i18n import get_text, LANGUAGES
@@ -32,7 +32,7 @@ class MainWindow:
         self._net_adapters = self.hw.get_network_adapters()
 
         self.root = tk.Tk()
-        self.root.geometry("950x700")
+        self.root.geometry("1100x800")
         self.root.minsize(850, 650)
 
         self.colors = {
@@ -118,9 +118,9 @@ class MainWindow:
 
         self._build_info_tab()
         self._build_cpu_tab()
+        self._build_gpu_tab()
         self._build_memory_tab()
         self._build_disk_tab()
-        self._build_gpu_tab()
         self._build_network_tab()
         self._build_process_tab()
 
@@ -168,7 +168,8 @@ class MainWindow:
         sb = ttk.Scrollbar(tab, orient=tk.VERTICAL, command=canvas.yview)
         sf = tk.Frame(canvas, bg=self.colors["bg"])
         sf.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=sf, anchor="nw")
+        win_id = canvas.create_window((0, 0), window=sf, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width) if win_id else None)
         canvas.configure(yscrollcommand=sb.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -178,14 +179,14 @@ class MainWindow:
 
         # 左右两列容器
         columns = tk.Frame(sf, bg=self.colors["bg"])
-        columns.pack(fill=tk.X, padx=15, pady=15)
+        columns.pack(fill=tk.X, padx=30, pady=15)
         columns.columnconfigure(0, weight=1)
         columns.columnconfigure(1, weight=1)
 
         left = tk.Frame(columns, bg=self.colors["bg"])
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        left.grid(row=0, column=0, sticky="nw", padx=(0, 10))
         right = tk.Frame(columns, bg=self.colors["bg"])
-        right.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        right.grid(row=0, column=1, sticky="nw", padx=(10, 0))
 
         # === 左列 ===
 
@@ -233,6 +234,17 @@ class MainWindow:
             mfr = slot.get("manufacturer", "")
             self._info_row(mem_f, f"slot_{i}", f"{cap}  {part}  {mfr}", r); r += 1
 
+        # Disk (moved to left column for balance)
+        disk_f = self._section(left, "disk_section")
+        disk_f.pack(fill=tk.X, pady=(0, 8))
+        disk_f.grid_columnconfigure(1, weight=1)
+        r = 0
+        for i, d in enumerate(self._disk_details):
+            self._info_row(disk_f, f"disk_{i}_model", d.model or "N/A", r); r += 1
+            self._info_row(disk_f, f"disk_{i}_cap",
+                           HardwareCollector.format_bytes(d.size) if d.size else "N/A", r); r += 1
+            self._info_row(disk_f, f"disk_{i}_iface", d.interface or "N/A", r); r += 1
+
         # === 右列 ===
 
         # Motherboard
@@ -251,17 +263,6 @@ class MainWindow:
         self._info_row(bios_f, "bios_manufacturer", bios.manufacturer or "N/A", 0)
         self._info_row(bios_f, "bios_version", bios.version or "N/A", 1)
         self._info_row(bios_f, "bios_date", bios.date or "N/A", 2)
-
-        # Disk
-        disk_f = self._section(right, "disk_section")
-        disk_f.pack(fill=tk.X, pady=(0, 8))
-        disk_f.grid_columnconfigure(1, weight=1)
-        r = 0
-        for i, d in enumerate(self._disk_details):
-            self._info_row(disk_f, f"disk_{i}_model", d.model or "N/A", r); r += 1
-            self._info_row(disk_f, f"disk_{i}_cap",
-                           HardwareCollector.format_bytes(d.size) if d.size else "N/A", r); r += 1
-            self._info_row(disk_f, f"disk_{i}_iface", d.interface or "N/A", r); r += 1
 
         # GPU
         gpu_f = self._section(right, "gpu_section")
@@ -285,6 +286,28 @@ class MainWindow:
             if adapter.speed:
                 self._info_row(net_f, f"net_{i}_speed", adapter.speed, r); r += 1
 
+        # Network IP
+        self._net_info = HardwareCollector.get_network_info()
+        self._net_ip_frame = self._section(right, "net_ip_section")
+        self._net_ip_frame.pack(fill=tk.X, pady=(0, 8))
+        self._net_ip_frame.grid_columnconfigure(1, weight=1)
+        self._net_ip_rows = {}
+        r = 0
+        for ip in self._net_info.get("ips", []):
+            val = self._info_row(self._net_ip_frame, "net_ip_label", ip, r)
+            self._net_ip_rows[f"ip_{r}"] = val
+            r += 1
+        gw = self._net_info.get("gateway", "")
+        if gw:
+            val = self._info_row(self._net_ip_frame, "net_gateway", gw, r)
+            self._net_ip_rows[f"ip_{r}"] = val
+            r += 1
+        dns_list = self._net_info.get("dns", [])
+        if dns_list:
+            val = self._info_row(self._net_ip_frame, "net_dns", ", ".join(dns_list), r)
+            self._net_ip_rows[f"ip_{r}"] = val
+            r += 1
+
         self.notebook.add(tab, text="")
 
     # ==================== CPU ====================
@@ -301,10 +324,11 @@ class MainWindow:
 
         cards = tk.Frame(tab, bg=self.colors["bg"])
         cards.pack(fill=tk.X, padx=10, pady=10)
-        cards.columnconfigure((0, 1, 2), weight=1)
+        cards.columnconfigure((0, 1, 2, 3), weight=1)
         self._widgets["cpu_overall"] = self._card(cards, "cpu_overall", 0, 0)
         self._widgets["cpu_freq"] = self._card(cards, "cpu_freq", 0, 1)
         self._widgets["cpu_cores"] = self._card(cards, "cpu_cores", 0, 2)
+        self._widgets["cpu_temp"] = self._card(cards, "cpu_temp", 0, 3)
 
         self._cpu_cores_frame = tk.LabelFrame(
             tab, bg=self.colors["card_bg"], fg=self.colors["text"],
@@ -399,8 +423,16 @@ class MainWindow:
     def _build_gpu_tab(self):
         tab = tk.Frame(self.notebook, bg=self.colors["bg"])
 
-        vendor = self.gpu_monitor._vendor
-        gpu_name = self.gpu_monitor._gpu_name
+        vendor = self.gpu_monitor.vendor
+        gpu_names = self.gpu_monitor._gpu_names
+        self._current_gpu_index = 0
+        # Default to first GPU with real data
+        all_stats = self.gpu_monitor.get_all_stats()
+        for i, s in enumerate(all_stats):
+            if s.gpu_usage >= 0:
+                self._current_gpu_index = i
+                break
+
         self._widgets["gpu_model_bar"] = tk.Frame(tab, bg=self.colors["card_bg"], height=30)
         self._widgets["gpu_model_bar"].pack(fill=tk.X, padx=10, pady=(10, 0))
         self._widgets["gpu_model_bar"].pack_propagate(False)
@@ -408,6 +440,24 @@ class MainWindow:
             self._widgets["gpu_model_bar"], bg=self.colors["card_bg"],
             fg=self.colors["text_dim"], font=("Microsoft YaHei UI", 9))
         self._widgets["gpu_model_text"].pack(side=tk.LEFT, padx=10)
+
+        # GPU selector (when >1 GPU)
+        self._widgets["gpu_selector_box"] = tk.Frame(
+            self._widgets["gpu_model_bar"], bg=self.colors["card_bg"])
+        self._widgets["gpu_selector_box"].pack(side=tk.RIGHT, padx=10)
+        self._widgets["gpu_selector_label"] = tk.Label(
+            self._widgets["gpu_selector_box"], bg=self.colors["card_bg"],
+            fg=self.colors["text_dim"], font=("Microsoft YaHei UI", 9))
+        self._widgets["gpu_selector_label"].pack(side=tk.LEFT)
+        self._widgets["gpu_selector"] = ttk.Combobox(
+            self._widgets["gpu_selector_box"], state="readonly", width=40,
+            font=("Microsoft YaHei UI", 9))
+        self._widgets["gpu_selector"].pack(side=tk.LEFT, padx=(5, 0))
+        self._widgets["gpu_selector"].bind("<<ComboboxSelected>>", self._on_gpu_select)
+        self._widgets["gpu_selector"]["values"] = [
+            f"GPU {i+1}: {n}" for i, n in enumerate(gpu_names)]
+        if gpu_names:
+            self._widgets["gpu_selector"].current(self._current_gpu_index)
 
         cards = tk.Frame(tab, bg=self.colors["bg"])
         cards.pack(fill=tk.X, padx=10, pady=10)
@@ -515,25 +565,16 @@ class MainWindow:
         # Update uptime format based on language
         info = self._sys_info
         if info.uptime_days > 0:
-            if self.lang == "zh":
-                uptime_text = f"{info.uptime_days}天 {info.uptime_hours}时 {info.uptime_minutes}分"
-            else:
-                uptime_text = f"{info.uptime_days}d {info.uptime_hours}h {info.uptime_minutes}m"
+            uptime_text = t("uptime_d_h_m", d=info.uptime_days, h=info.uptime_hours, m=info.uptime_minutes)
         elif info.uptime_hours > 0:
-            if self.lang == "zh":
-                uptime_text = f"{info.uptime_hours}时 {info.uptime_minutes}分"
-            else:
-                uptime_text = f"{info.uptime_hours}h {info.uptime_minutes}m"
+            uptime_text = t("uptime_h_m", h=info.uptime_hours, m=info.uptime_minutes)
         else:
-            if self.lang == "zh":
-                uptime_text = f"{info.uptime_minutes}分 {info.uptime_seconds}秒"
-            else:
-                uptime_text = f"{info.uptime_minutes}m {info.uptime_seconds}s"
+            uptime_text = t("uptime_m_s", m=info.uptime_minutes, s=info.uptime_seconds)
         if hasattr(self, '_uptime_val'):
             self._uptime_val.config(text=uptime_text)
 
-        tabs = [t("tab_info"), t("tab_cpu"), t("tab_memory"), t("tab_disk"),
-                t("tab_gpu"), t("tab_network"), t("tab_process")]
+        tabs = [t("tab_info"), t("tab_cpu"), t("tab_gpu"), t("tab_memory"), t("tab_disk"),
+                t("tab_network"), t("tab_process")]
         for i, txt in enumerate(tabs):
             try:
                 self.notebook.tab(i, text=txt)
@@ -614,9 +655,22 @@ class MainWindow:
             pass
 
         # GPU tab
-        self._widgets["gpu_model_text"].config(
-            text=t("gpu_model_bar", name=self.gpu_monitor._gpu_name,
-                   vendor=self.gpu_monitor._vendor))
+        vendor = self.gpu_monitor.vendor
+        gpu_names = self.gpu_monitor._gpu_names
+        name0 = gpu_names[0] if gpu_names else ""
+        count = len(gpu_names)
+        if count > 1:
+            self._widgets["gpu_model_text"].config(
+                text=t("gpu_model_bar_multi", vendor=vendor, count=count))
+            self._widgets["gpu_selector_label"].config(text=t("gpu_selector") + ": ")
+            self._widgets["gpu_selector"]["values"] = [
+                f"GPU {i+1}: {n}" for i, n in enumerate(gpu_names)]
+            if count > 0:
+                self._widgets["gpu_selector_box"].pack(side=tk.RIGHT, padx=10)
+                self._widgets["gpu_selector"].current(self._current_gpu_index)
+        else:
+            self._widgets["gpu_model_text"].config(
+                text=t("gpu_model_bar", name=name0, vendor=vendor))
         try:
             self._widgets["gpu_vram_section"].config(text=t("gpu_vram_section"))
         except Exception:
@@ -630,22 +684,23 @@ class MainWindow:
             self.process_tree.heading(c, text=t(c))
 
         # Chart titles + legend labels
+        xlbl = t("cpu_trend_x")
         if hasattr(self, 'cpu_chart'):
             self.cpu_chart.update_labels(
                 t("cpu_trend"), t("cpu_trend_y"),
-                [t("cpu_trend_label")])
+                [t("cpu_trend_label")], xlbl)
         if hasattr(self, 'mem_chart'):
             self.mem_chart.update_labels(
                 t("mem_trend"), "%",
-                [t("mem_trend_label")])
+                [t("mem_trend_label")], xlbl)
         if hasattr(self, 'gpu_chart'):
             self.gpu_chart.update_labels(
                 t("gpu_trend"), "%",
-                t("gpu_trend_labels"))
+                t("gpu_trend_labels"), xlbl)
         if hasattr(self, 'net_chart'):
             self.net_chart.update_labels(
                 t("net_trend"), t("net_trend_y"),
-                t("net_trend_labels"))
+                t("net_trend_labels"), xlbl)
 
     # ==================== Data Refresh ====================
     def _refresh_data(self):
@@ -658,6 +713,13 @@ class MainWindow:
             self._update_gpu()
             self._update_network()
             self._update_processes()
+            if not hasattr(self, '_net_refresh_counter'):
+                self._net_refresh_counter = 0
+            self._net_refresh_counter += 1
+            if self._net_refresh_counter >= 30:  # every 30s, only when on info tab
+                self._net_refresh_counter = 0
+                if self.notebook.index(self.notebook.select()) == 0:
+                    self._refresh_net_info()
         except Exception as e:
             print(f"Error: {e}")
         self.root.after(self.REFRESH_INTERVAL, self._refresh_data)
@@ -668,6 +730,16 @@ class MainWindow:
         self._widgets["cpu_overall"].config(text=f"{cpu.overall:.1f}%", fg=color)
         self._widgets["cpu_freq"].config(text=f"{cpu.freq_current:.0f} MHz")
         self._widgets["cpu_cores"].config(text=f"{cpu.core_count}")
+
+        # CPU temperature
+        temp = get_cpu_temp()
+        if temp > 0:
+            self._widgets["cpu_temp"].config(
+                text=f"{temp:.0f}{self._t('temp_unit')}",
+                fg="#66BB6A" if temp < 60 else "#FFA726" if temp < 80 else "#EF5350")
+        else:
+            self._widgets["cpu_temp"].config(
+                text=self._t("thermal_no_data"), fg=self.colors["text_dim"])
 
         for i, (bar, val, lbl) in enumerate(self.cpu_core_bars):
             if i < len(cpu.per_core):
@@ -701,20 +773,28 @@ class MainWindow:
                 f"{p['percent']:.1f}%"))
 
     def _update_gpu(self):
-        stats = self.gpu_monitor.get_stats()
-        color = self._color(stats.gpu_usage)
-        self._widgets["gpu_usage"].config(text=f"{stats.gpu_usage:.0f}%", fg=color)
+        stats = self.gpu_monitor.get_stats(self._current_gpu_index)
+        no_data = stats.gpu_usage < 0
+        color = self._color(stats.gpu_usage) if not no_data else self.colors["text_dim"]
+        self._widgets["gpu_usage"].config(
+            text=f"{stats.gpu_usage:.0f}%" if not no_data else "--", fg=color)
         self._widgets["gpu_temp"].config(
-            text=f"{stats.temperature:.0f}" + self._t("temp_unit") if stats.temperature > 0 else "--")
+            text=f"{stats.temperature:.0f}" + self._t("temp_unit") if stats.temperature >= 0 else "--",
+            fg="#66BB6A" if 0 < stats.temperature < 60 else "#FFA726" if 60 <= stats.temperature < 80 else "#EF5350"
+                if stats.temperature > 0 else self.colors["text_dim"])
         self._widgets["gpu_power"].config(
-            text=f"{stats.power:.0f}" + self._t("watt_unit") if stats.power > 0 else "--")
+            text=f"{stats.power:.0f}" + self._t("watt_unit") if stats.power >= 0 else "--")
         self._widgets["gpu_mem"].config(
-            text=f"{stats.memory_usage:.0f}%" if stats.memory_usage > 0 else "--")
-        if stats.memory_usage > 0:
+            text=f"{stats.memory_usage:.0f}%" if stats.memory_usage >= 0 else "--")
+        if stats.memory_usage >= 0:
             self.gpu_mem_progress["value"] = stats.memory_usage
             self._widgets["gpu_mem_detail"].config(
                 text=f"{stats.memory_used} / {stats.memory_total}")
-        self.gpu_chart.update_data([stats.gpu_usage, stats.memory_usage])
+        else:
+            self.gpu_mem_progress["value"] = 0
+            self._widgets["gpu_mem_detail"].config(text=self._t("thermal_no_data"))
+        self.gpu_chart.update_data(
+            [max(stats.gpu_usage, 0), max(stats.memory_usage, 0)])
 
     def _update_network(self):
         net = self.monitor.get_network()
@@ -764,6 +844,29 @@ class MainWindow:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.mainloop()
 
+    def _on_gpu_select(self, event=None):
+        idx = self._widgets["gpu_selector"].current()
+        if idx >= 0:
+            self._current_gpu_index = idx
+
     def _on_close(self):
         self._running = False
         self.root.destroy()
+
+    def _refresh_net_info(self):
+        """Refresh network IP section"""
+        info = HardwareCollector.get_network_info()
+        values = []
+        for ip in info.get("ips", []):
+            values.append(ip)
+        gw = info.get("gateway", "")
+        if gw:
+            values.append(gw)
+        dns_list = info.get("dns", [])
+        if dns_list:
+            values.append(", ".join(dns_list))
+        for i, val in enumerate(values):
+            key = f"ip_{i}"
+            if key in self._net_ip_rows:
+                self._net_ip_rows[key].config(text=val)
+        self._net_info = info

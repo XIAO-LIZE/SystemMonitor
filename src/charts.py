@@ -37,6 +37,7 @@ class RealtimeChart(ttk.Frame):
         line_labels: Optional[List[str]] = None,
         line_colors: Optional[List[str]] = None,
         figsize: tuple = (5, 2.5),
+        x_label: str = None,
     ):
         """
         初始化图表
@@ -73,10 +74,11 @@ class RealtimeChart(ttk.Frame):
         self.ax.set_facecolor("#2b2b2b")
 
         # 设置坐标轴样式
-        self.ax.tick_params(colors="white", labelsize=8)
-        self.ax.set_title(title, color="white", fontsize=10, fontweight="bold")
-        self.ax.set_ylabel(y_label, color="white", fontsize=8)
-        self.ax.set_xlabel("时间 (秒)", color="white", fontsize=8)
+        self.ax.tick_params(colors="white", labelsize=11)
+        self.ax.set_title(title, color="white", fontsize=13, fontweight="bold")
+        self.ax.set_ylabel(y_label, color="white", fontsize=12)
+        self.x_label = x_label or "时间 (秒)"
+        self.ax.set_xlabel(self.x_label, color="white", fontsize=12)
 
         for spine in self.ax.spines.values():
             spine.set_color("#555555")
@@ -89,7 +91,7 @@ class RealtimeChart(ttk.Frame):
             self.lines.append(line)
 
         if len(self.line_labels) > 1:
-            self.ax.legend(loc="upper left", fontsize=7, facecolor="#333333",
+            self.ax.legend(loc="upper left", fontsize=14, facecolor="#333333",
                            edgecolor="#555555", labelcolor="white")
 
         self.ax.grid(True, alpha=0.2, color="white")
@@ -98,7 +100,8 @@ class RealtimeChart(ttk.Frame):
         self.canvas = FigureCanvasTkAgg(self.figure, self)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        self.figure.tight_layout()
+        self.figure.tight_layout(pad=1.0)
+        self.figure.subplots_adjust(left=0.06, right=0.97, top=0.93, bottom=0.12)
 
     def update_data(self, values: List[float]):
         """
@@ -136,16 +139,18 @@ class RealtimeChart(ttk.Frame):
 
         self.canvas.draw_idle()
 
-    def update_labels(self, title: str, y_label: str, line_labels: List[str]):
+    def update_labels(self, title: str, y_label: str, line_labels: List[str], x_label: str = None):
         """更新图表标题、Y轴标签和折线图例（用于语言切换）"""
         if not HAS_MATPLOTLIB:
             return
-        self.ax.set_title(title, color="white", fontsize=10, fontweight="bold")
-        self.ax.set_ylabel(y_label, color="white", fontsize=8)
+        self.ax.set_title(title, color="white", fontsize=13, fontweight="bold")
+        self.ax.set_ylabel(y_label, color="white", fontsize=12)
+        new_xlabel = x_label or self.x_label
+        self.ax.set_xlabel(new_xlabel, color="white", fontsize=12)
         for i, line in enumerate(self.lines):
             if i < len(line_labels):
                 line.set_label(line_labels[i])
         if len(line_labels) > 1:
-            self.ax.legend(loc="upper left", fontsize=7, facecolor="#333333",
+            self.ax.legend(loc="upper left", fontsize=14, facecolor="#333333",
                            edgecolor="#555555", labelcolor="white")
         self.canvas.draw_idle()
