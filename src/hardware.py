@@ -505,7 +505,7 @@ class HardwareCollector:
                         iface = ip.get("InterfaceAlias", "")
                         if addr and not addr.startswith("127.") and addr not in seen:
                             seen.add(addr)
-                            result["ips"].append(f"{addr}  ({iface})")
+                            result["ips"].append({"addr": addr, "iface": iface})
                 except json.JSONDecodeError:
                     pass
 

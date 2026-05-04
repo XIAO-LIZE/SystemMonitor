@@ -34,6 +34,9 @@ LANGUAGES = {
         "net_ip_label": "IP 地址：",
         "net_gateway": "网关：",
         "net_dns": "DNS：",
+        "iface_ethernet": "以太网",
+        "iface_wifi": "WLAN",
+        "iface_bluetooth": "蓝牙",
         "net_card": "网卡 {n}：",
         "net_mac": "  MAC：",
         "net_speed": "  速率：",
@@ -158,6 +161,7 @@ LANGUAGES = {
 
         # 语言切换
         "lang_switch": "EN",
+        "lang_hint": "Switch language (may lag 1-2s)",
         "lang_tooltip": "Switch to English",
     },
 
@@ -188,6 +192,9 @@ LANGUAGES = {
         "net_ip_label": "IP Address:",
         "net_gateway": "Gateway:",
         "net_dns": "DNS:",
+        "iface_ethernet": "Ethernet",
+        "iface_wifi": "Wi-Fi",
+        "iface_bluetooth": "Bluetooth",
         "net_card": "NIC {n}:",
         "net_mac": "  MAC:",
         "net_speed": "  Speed:",
@@ -312,6 +319,7 @@ LANGUAGES = {
 
         # Language switch
         "lang_switch": "中",
+        "lang_hint": "切换语言（可能卡顿1-2秒）",
         "lang_tooltip": "切换到中文",
     },
 }

@@ -110,7 +110,11 @@ class MainWindow:
             bg=self.colors["accent"], fg="#ffffff",
             relief="flat", cursor="hand2", width=3,
             command=self._switch_language)
-        self._lang_btn.pack(side=tk.RIGHT, padx=5, pady=10)
+        self._lang_btn.pack(side=tk.RIGHT, padx=(0, 5), pady=10)
+        self._lang_hint = tk.Label(
+            header, fg=self.colors["accent"],
+            bg=self.colors["bg"], font=("Microsoft YaHei UI", 9))
+        self._lang_hint.pack(side=tk.RIGHT, padx=5, pady=10)
 
     def _build_notebook(self):
         self.notebook = ttk.Notebook(self.root)
@@ -293,8 +297,11 @@ class MainWindow:
         self._net_ip_frame.grid_columnconfigure(1, weight=1)
         self._net_ip_rows = {}
         r = 0
-        for ip in self._net_info.get("ips", []):
-            val = self._info_row(self._net_ip_frame, "net_ip_label", ip, r)
+        for ip_info in self._net_info.get("ips", []):
+            addr = ip_info["addr"] if isinstance(ip_info, dict) else ip_info
+            iface = ip_info.get("iface", "") if isinstance(ip_info, dict) else ""
+            display = self._format_ip_display(addr, iface) if iface else addr
+            val = self._info_row(self._net_ip_frame, "net_ip_label", display, r)
             self._net_ip_rows[f"ip_{r}"] = val
             r += 1
         gw = self._net_info.get("gateway", "")
@@ -553,10 +560,28 @@ class MainWindow:
         self.lang = "en" if self.lang == "zh" else "zh"
         self._apply_texts()
 
+    def _show_toast(self, msg: str, duration: int = 2000):
+        """Show a temporary toast popup centered over the main window"""
+        toast = tk.Toplevel(self.root)
+        toast.overrideredirect(True)
+        toast.attributes("-topmost", True)
+        lbl = tk.Label(toast, text=msg, bg="#2a2a2a", fg="white",
+                       font=("Microsoft YaHei UI", 11), padx=20, pady=10)
+        lbl.pack()
+        toast.update_idletasks()
+        rx, ry = self.root.winfo_rootx(), self.root.winfo_rooty()
+        rw, rh = self.root.winfo_width(), self.root.winfo_height()
+        tw, th = toast.winfo_width(), toast.winfo_height()
+        x = rx + (rw - tw) // 2
+        y = ry + (rh - th) // 2
+        toast.geometry(f"+{x}+{y}")
+        toast.after(duration, toast.destroy)
+
     def _apply_texts(self):
         t = self._t
         self.root.title(t("window_title"))
         self._lang_btn.config(text=t("lang_switch"))
+        self._lang_hint.config(text=t("lang_hint"))
         self._widgets["title"].config(text=f"🖥 {t('window_title')}")
         self._widgets["os_label"].config(
             text=f"{self._sys_info.os_name} {self._sys_info.os_arch}")
@@ -701,6 +726,10 @@ class MainWindow:
             self.net_chart.update_labels(
                 t("net_trend"), t("net_trend_y"),
                 t("net_trend_labels"), xlbl)
+
+        # Refresh network IP display for interface name translation
+        if hasattr(self, '_net_ip_rows'):
+            self._refresh_net_info()
 
     # ==================== Data Refresh ====================
     def _refresh_data(self):
@@ -853,12 +882,31 @@ class MainWindow:
         self._running = False
         self.root.destroy()
 
+    def _translate_iface(self, name: str) -> str:
+        """Translate common Windows interface names"""
+        mapping = {
+            "以太网": self._t("iface_ethernet"),
+            "WLAN": self._t("iface_wifi"),
+            "Wi-Fi": self._t("iface_wifi"),
+            "蓝牙": self._t("iface_bluetooth"),
+            "Bluetooth": self._t("iface_bluetooth"),
+        }
+        for cn, tr in mapping.items():
+            name = name.replace(cn, tr)
+        return name
+
+    def _format_ip_display(self, addr: str, iface: str) -> str:
+        """Format IP address with translated interface name"""
+        return f"{addr}  ({self._translate_iface(iface)})"
+
     def _refresh_net_info(self):
         """Refresh network IP section"""
         info = HardwareCollector.get_network_info()
         values = []
-        for ip in info.get("ips", []):
-            values.append(ip)
+        for ip_info in info.get("ips", []):
+            addr = ip_info["addr"] if isinstance(ip_info, dict) else ip_info
+            iface = ip_info.get("iface", "") if isinstance(ip_info, dict) else ""
+            values.append(self._format_ip_display(addr, iface) if iface else addr)
         gw = info.get("gateway", "")
         if gw:
             values.append(gw)
